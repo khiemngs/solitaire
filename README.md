@@ -1,5 +1,7 @@
 # Solitaire — one file, one request
 
+**Play: <https://khiemngs.github.io/solitaire/>** (source: <https://github.com/khiemngs/solitaire>)
+
 A complete Klondike (draw-1) solitaire that fits in **one self-contained HTML document**:
 no external images, fonts or scripts — no requests of any kind beyond the page itself.
 
@@ -102,6 +104,11 @@ node serve.mjs                # PORT=8080 node serve.mjs -> http://127.0.0.1:808
   still in flight, that `.c` really has a transition, that the board settles afterwards,
   and that emulated `prefers-reduced-motion: reduce` turns both off (the 332-move replay
   then runs against the static path, which also keeps it deterministic).
+* **On the live site** — the deployed document is byte-identical to the committed
+  `dist/index.html`, and loading <https://khiemngs.github.io/solitaire/> in real Chrome
+  produces **exactly one network request** (the document — no favicon, no sub-resources),
+  a correct 52-card deal, working stock/undo taps and zero console errors. See
+  `shots/live-github-pages.png`.
 
 ## Animation
 
@@ -122,16 +129,32 @@ transition and both animations in CSS.
 Screenshots: `shots/mobile-deal-anim.png` (mid-deal), `shots/anim-inflight.png` and
 `shots/anim-flash.png` (a card on its way to a foundation and its landing flash),
 `shots/mobile-deal.png`, `shots/desktop-deal.png`, `shots/mobile-midgame.png` (fanned runs
-with every face readable), `shots/mobile-win.png`.
+with every face readable), `shots/mobile-win.png`, `shots/live-github-pages.png`.
 
 ## Deployment
 
-The single file is the whole app, so any static host works. For the smallest transfer,
-let the server use the pre-compressed sibling:
+**GitHub Pages** — <https://khiemngs.github.io/solitaire/> is live from
+`.github/workflows/deploy.yml`, which mirrors the standard Actions → Pages flow
+(`configure-pages` → `upload-pages-artifact` from `dist` → `deploy-pages`). Every push to
+`main` rebuilds from source, so the published file is always generated, never hand-edited.
+The pipeline refuses to deploy if:
+
+* the document exceeds 12 KB raw / 5 KB brotli, or gains any non-`data:` external
+  reference (that would mean a second HTTP request),
+* a rules test fails.
+
+Bun is pinned (`1.3.14`) in the workflow because the minifier's identifier naming is
+version-specific; with it pinned, CI's output is byte-identical to the local
+`dist/index.html`.
+
+Two things to know about GitHub Pages specifically: it serves the document **gzip-encoded
+(3,447 B)** — it does not pick up the pre-compressed `.br`/`.gz` siblings — and it sends
+`Cache-Control: max-age=600`. Both are fine here (one request, ~3.4 KB), but a host with
+`brotli_static` gets 2,966 B and immutable caching:
 
 ```nginx
-brotli_static on;      # serves index.html.br (2.6 KB) when the client accepts br
-gzip_static on;        # falls back to index.html.gz (3.1 KB)
+brotli_static on;      # serves index.html.br (2.9 KB) when the client accepts br
+gzip_static on;        # falls back to index.html.gz (3.4 KB)
 location = / { add_header Cache-Control "public, max-age=31536000, immutable"; }
 ```
 
