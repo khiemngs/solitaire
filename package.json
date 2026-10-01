@@ -1,0 +1,13 @@
+{
+  "name": "solitaire-light",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-request, ultra-light Klondike solitaire (one self-contained HTML document)",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/logic.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "serve": "node serve.mjs"
+  }
+}

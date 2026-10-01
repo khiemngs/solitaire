@@ -1,0 +1,93 @@
+* { margin: 0; padding: 0; box-sizing: border-box }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #0a6b3d;
+  /* var() keeps the CSS minifier from expanding `system-ui` into a 130-byte stack */
+  font: 600 1em/1 var(--f, system-ui);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#b { position: fixed; inset: 0; --w: 60px; --h: 84px; font-variant-emoji: text }
+
+#b > div {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--w);
+  height: var(--h);
+  border-radius: 6%;
+}
+
+.e { border: 1px solid #ffffff44; pointer-events: none }
+
+.c {
+  background: #fff;
+  border: 1px solid #1a1a1a;
+  color: #111;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  /* em, not %: a percentage padding resolves against the board width, not the card */
+  padding-top: .15em;
+  white-space: pre;
+  text-align: center;
+  line-height: 1.05;
+  will-change: transform;
+  box-shadow: 0 1px 2px #0004;
+  transition: transform .18s ease-out;
+}
+
+/* while a drag drives the cards, following the pointer must not lag */
+#b.d > div { transition: none }
+
+.r { color: #c00 }
+
+.k {
+  background: repeating-linear-gradient(45deg, #123f6b 0 5px, #1b5c96 5px 10px);
+  border-color: #08203c;
+}
+
+.s { outline: .16em solid #fd0; outline-offset: -.16em; box-shadow: 0 3px 9px #0005 }
+
+/* flash when a card lands on a foundation */
+.p { animation: f .3s ease-out }
+@keyframes f { 50% { background: #ffdf85 } }
+
+#h { position: fixed; display: flex; flex-direction: column; gap: 6% }
+
+#h button, #w button {
+  flex: 1;
+  border: 0;
+  border-radius: 6%;
+  background: #ffffff2e;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#h button:active { background: #ffffff66 }
+
+#w {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: #0009;
+  color: #fff;
+  font-size: 2em;
+  text-align: center;
+}
+
+#w.on { display: grid; animation: o .25s }
+@keyframes o { from { opacity: 0 } }
+
+#w button { margin-top: .6em; padding: .4em .8em }
+
+@media (prefers-reduced-motion: reduce) {
+  .c { transition: none }
+  .p, #w.on { animation: none }
+}
