@@ -20,6 +20,8 @@ rmSync(tmp);
 const shell = readFileSync(at('src/index.html'), 'utf8')
   .replace(/<!--[\s\S]*?-->/g, '')
   .replace(/\s*\n\s*/g, '')
+  // HTML5 does not need quotes here: -2 bytes per attribute (values with `=` keep theirs).
+  .replace(/ ([\w-]+)="([^"'=<>\s`]+)"/g, ' $1=$2')
   .trim();
 
 // Replacement functions: minified output contains `$`, which would be special in a string replacement.
@@ -43,7 +45,7 @@ const gz = gzBuf.length, br = brBuf.length;
 const refs = [...html.matchAll(/\b(?:src|href)\s*=\s*["']?([^"'\s>]*)/g)].map(m => m[1]);
 const external = refs.filter(u => !u.startsWith('data:'));
 
-const targets = { raw: 12288, br: 5120 };
+const targets = { raw: 7000, br: 3000 };
 const kb = n => (n / 1024).toFixed(2) + ' KB';
 const table = [
   ['css', Buffer.byteLength(css)],

@@ -298,6 +298,13 @@ try {
   check(final === 52, 'all 52 cards are home in the DOM', final);
   check(await ev(`document.getElementById('w').classList.contains('on')`), 'win overlay is shown');
   await shot('mobile-win.png');
+  // the overlay is the only way back to a new deal now: tapping anywhere must re-deal
+  await ev(`document.getElementById('w').click()`);
+  await sleep(250);
+  const again = await ev(`({on:document.getElementById('w').classList.contains('on'),
+    home:[...document.querySelectorAll('#b>.c')].filter(e=>e._k===1).length,
+    cards:document.querySelectorAll('#b>.c').length})`);
+  check(!again.on && again.home === 0 && again.cards === 52, 'tapping the win overlay deals a new game', again);
 
   console.log('== 5. no extra requests, no page errors ==');
   check(reqs.every(r => r === '/'), 'every HTTP request was for the page itself', reqs);

@@ -13,7 +13,7 @@ export const down = v => (v & DOWN) > 0;
 
 // xorshift32 -> reproducible deals from a small integer seed
 export function deal(seed) {
-  const d = Array.from({ length: 52 }, (_, i) => i);
+  const d = [...Array(52).keys()];
   let x = (seed >>> 0) || 1;
   const rnd = () => {
     x ^= x << 13; x >>>= 0;
@@ -22,6 +22,7 @@ export function deal(seed) {
     return x / 4294967296;
   };
   for (let i = 51; i > 0; i--) {
+    // temp-variable swap, not destructuring: same bytes raw, 23 fewer brotli
     const j = (rnd() * (i + 1)) | 0, t = d[i];
     d[i] = d[j]; d[j] = t;
   }

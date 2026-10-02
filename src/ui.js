@@ -7,8 +7,10 @@ const b = document.getElementById('b'),
   S = K.SUITS;
 
 const cards = [], slots = [];
-for (let i = 0; i < 13; i++) { const e = document.createElement('div'); e.className = 'e'; b.append(e); slots[i] = e; }
-for (let i = 0; i < 52; i++) { const e = document.createElement('div'); e.className = 'c'; e._c = i; b.append(e); cards[i] = e; }
+// one parse beats 65 createElement/append pairs; order is 13 slots then 52 cards
+b.innerHTML = '<div></div>'.repeat(65);
+for (let i = 0; i < 13; i++) { const e = slots[i] = b.children[i]; e.className = 'e'; }
+for (let i = 0; i < 52; i++) { const e = cards[i] = b.children[i + 13]; e.className = 'c'; e._c = i; }
 
 let g, hist = [], sel = 0, dn = 0, drag = 0, dl = [], px = 0, py = 0, sx = 0, sy = 0;
 let cw = 0, ch = 0, pad = 0, row2 = 0, dealt = 99, pop = -1;
@@ -24,11 +26,12 @@ function size() {
   b.style.setProperty('--w', cw + 'px');
   b.style.setProperty('--h', ch + 'px');
   b.style.fontSize = cw * 0.2 + 'px';
-  bar.style.left = cx(2) + 'px';
-  bar.style.top = pad + 'px';
-  bar.style.width = cw + 'px';
-  bar.style.height = ch + 'px';
-  bar.style.fontSize = cw * 0.3 + 'px';
+  const st = bar.style;
+  st.left = cx(2) + 'px';
+  st.top = pad + 'px';
+  st.width = cw + 'px';
+  st.height = ch + 'px';
+  st.fontSize = cw * 0.3 + 'px';
 }
 
 function place(e, x, y, z) {
@@ -79,15 +82,11 @@ function draw() {
     face(e, c, cx(1) + Math.min(g.w.length - 1 - i, 3) * cw * 0.14, pad, i + 1, sel && sel.k === 3 && i === g.w.length - 1);
     e._k = 3; e._i = 0; e._j = i;
   }
-  if (drag) for (const d of dl) {
-    const e = cards[d.v];
-    e.style.transform = 'translate(' + (px + d.x) + 'px,' + (py + d.y) + 'px)';
-    e.style.zIndex = 99;
-  }
+  if (drag) for (const d of dl) place(cards[d.v], px + d.x, py + d.y, 99);
 }
 
 function hit(x, y) {
-  const i = Math.max(0, Math.min(6, Math.floor((x - pad) / (cw + pad))));
+  const i = Math.max(0, Math.min(6, (x - pad) / (cw + pad) | 0));
   if (y < row2) return i === 0 ? { k: 2 } : i === 1 ? { k: 3 } : i > 2 ? { k: 1, i: i - 3 } : 0;
   return { k: 0, i };
 }
@@ -188,7 +187,7 @@ function fresh(seed) {
 
 document.getElementById('u').onclick = undo;
 document.getElementById('n').onclick = () => fresh(Date.now());
-document.getElementById('n2').onclick = () => fresh(Date.now());
+win.onclick = () => fresh(Date.now()); // tap anywhere on the win overlay to replay
 addEventListener('resize', () => { size(); draw(); });
 
 fresh(+location.hash.slice(1) || Date.now());

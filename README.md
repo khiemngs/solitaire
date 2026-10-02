@@ -6,7 +6,7 @@ A complete Klondike (draw-1) solitaire that fits in **one self-contained HTML do
 no external images, fonts or scripts — no requests of any kind beyond the page itself.
 
 ```
-dist/index.html        7,310 B raw        3,527 B gzip -9       2,966 B brotli -q11
+dist/index.html        6,950 B raw        3,433 B gzip -9       2,907 B brotli -q11
 ```
 
 That is the whole game — HTML, CSS, 52-card deck, rules engine, renderer, input
@@ -20,7 +20,7 @@ handling and its animations — fetched in **exactly 1 HTTP request** (verified,
 | Move a card or a run | tap it, then tap the destination column (empty slot or a top card) |
 | Send a card home | tap it twice (second tap tries its foundation) |
 | Drag and drop | press and move — tap-to-move is just the no-drag path |
-| Undo / New deal | the two buttons in the third column, or the win overlay's "Again" |
+| Undo / New deal | the New and Undo buttons in the third column; after a win, tap anywhere |
 
 Tableau builds down in alternating colors, only a King opens an empty column, runs move
 as a unit, foundations build up by suit, revealed tableau cards flip themselves.
@@ -47,7 +47,26 @@ reproducible shuffle (the built-in xorshift32 PRNG), and it is also the test ent
 | Deal animation reuses the same `draw()` (cards parked on the stock, `dealt` counter stepped by rAF) | staggered deal from ~10 lines, no keyframes, no per-card delays |
 | `font: 600 1em/1 var(--f, system-ui)` | dodges the CSS minifier's 130-byte `system-ui` stack expansion (measured: −90 B raw, −61 B brotli) |
 | 1–2 character ids/classes (`#b`, `.c`, `.k`, `.r`, `.s`, `.p`), seeded deal | fewer bytes in both CSS and HTML |
-| `bun build --minify` (esbuild) for JS + CSS, whitespace/comment HTML minify | JS 5,449 B, CSS 1,340 B |
+| 65 board nodes built by one `innerHTML` parse + `String.repeat` | beats 65 `createElement`/`append` pairs |
+| `bun build --minify` (esbuild) for JS + CSS, whitespace/comment HTML minify, HTML attribute quotes removed | JS 5,318 B, CSS 1,280 B, shell 352 B |
+| Pre-compressed `dist/index.html.br` / `.gz` written by the build | brotli 2.84 KB over the wire where the host supports it |
+
+### What actually shrinks the file (measured, and counter-intuitive)
+
+The served bytes are already compressed, so removing *repetition* is worthless and can be
+counter-productive:
+
+| change | raw | gzip | brotli |
+|---|---|---|---|
+| CSS: drop `will-change`, card/selection shadows, `-webkit-user-select`, the redundant win-button rules, 4-digit hex, shorter gradient stops | −173 | −79 | −77 |
+| shell + JS: drop the Again button, unquote HTML attributes, build all 65 nodes with one `innerHTML` parse, reuse `place()` for the drag, hoist `bar.style`, `\|0` instead of `Math.floor` | −187 | −15 | +18 |
+| *rejected:* alias `getElementById`/`addEventListener`/`Math`, `classList`→`hidden`, `transform`→`translate` (measured against the 7,310 B file) | −165 | **+37** | **+54** |
+| *rejected:* destructuring swap instead of a temp variable | 0 | 0 | **+23** |
+
+**Total: 7,310 → 6,950 raw (−4.9 %), 3,527 → 3,433 gzip (−2.7 %), 2,966 → 2,907 brotli (−2.0 %)**, of
+which every byte came from deleting content rather than renaming it. The last two rows are
+deliberately *not* in the file: the temp-variable swap is kept because it is the same size
+raw but 23 bytes cheaper brotli.
 | Pre-compressed `dist/index.html.br` / `.gz` written by the build | brotli 2.83 KB over the wire, no runtime compression |
 
 Measured step by step with `node build.mjs`, which prints the raw/gzip/brotli table and
@@ -92,7 +111,8 @@ node serve.mjs                # PORT=8080 node serve.mjs -> http://127.0.0.1:808
 * **The UI is the engine** — that same winning line (seed 21, 332 moves) is replayed in
   real Chrome by dispatching actual mouse events at computed coordinates, asserting after
   *every* move that the DOM's pile assignment for all 52 cards equals the engine's state,
-  then that the win overlay appears with 52 cards home.
+  then that the win overlay appears with 52 cards home, and that tapping the overlay
+  (its only control — there is no button any more) deals a fresh game.
 * **Rendering** — 52 cards, exactly 7 faces at the deal, rank+suit glyphs are real text
   (no tofu/emoji), the ten renders as `10` rather than `T`, each face is measured to be
   two lines with the rank above the suit and both horizontally centred, the face is
@@ -153,8 +173,8 @@ Two things to know about GitHub Pages specifically: it serves the document **gzi
 `brotli_static` gets 2,966 B and immutable caching:
 
 ```nginx
-brotli_static on;      # serves index.html.br (2.9 KB) when the client accepts br
-gzip_static on;        # falls back to index.html.gz (3.4 KB)
+brotli_static on;      # serves index.html.br (2,907 B) when the client accepts br
+gzip_static on;        # falls back to index.html.gz (3,433 B)
 location = / { add_header Cache-Control "public, max-age=31536000, immutable"; }
 ```
 

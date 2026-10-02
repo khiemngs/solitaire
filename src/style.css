@@ -1,13 +1,11 @@
 * { margin: 0; padding: 0; box-sizing: border-box }
 
 html, body {
-  height: 100%;
   overflow: hidden;
   background: #0a6b3d;
   /* var() keeps the CSS minifier from expanding `system-ui` into a 130-byte stack */
   font: 600 1em/1 var(--f, system-ui);
   user-select: none;
-  -webkit-user-select: none;
   touch-action: none;
 }
 
@@ -22,7 +20,7 @@ html, body {
   border-radius: 6%;
 }
 
-.e { border: 1px solid #ffffff44; pointer-events: none }
+.e { border: 1px solid #fff4; pointer-events: none }
 
 .c {
   background: #fff;
@@ -36,8 +34,6 @@ html, body {
   white-space: pre;
   text-align: center;
   line-height: 1.05;
-  will-change: transform;
-  box-shadow: 0 1px 2px #0004;
   transition: transform .18s ease-out;
 }
 
@@ -47,11 +43,11 @@ html, body {
 .r { color: #c00 }
 
 .k {
-  background: repeating-linear-gradient(45deg, #123f6b 0 5px, #1b5c96 5px 10px);
+  background: repeating-linear-gradient(45deg, #123f6b 0 5px, #1b5c96 0 10px);
   border-color: #08203c;
 }
 
-.s { outline: .16em solid #fd0; outline-offset: -.16em; box-shadow: 0 3px 9px #0005 }
+.s { outline: .16em solid #fd0; outline-offset: -.16em }
 
 /* flash when a card lands on a foundation */
 .p { animation: f .3s ease-out }
@@ -59,17 +55,17 @@ html, body {
 
 #h { position: fixed; display: flex; flex-direction: column; gap: 6% }
 
-#h button, #w button {
+#h button {
   flex: 1;
   border: 0;
   border-radius: 6%;
-  background: #ffffff2e;
+  background: #fff3;
   color: #fff;
   font: inherit;
   cursor: pointer;
 }
 
-#h button:active { background: #ffffff66 }
+#h button:active { background: #fff6 }
 
 #w {
   position: fixed;
@@ -84,8 +80,6 @@ html, body {
 
 #w.on { display: grid; animation: o .25s }
 @keyframes o { from { opacity: 0 } }
-
-#w button { margin-top: .6em; padding: .4em .8em }
 
 @media (prefers-reduced-motion: reduce) {
   .c { transition: none }
