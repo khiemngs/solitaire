@@ -102,7 +102,7 @@ try {
   await cdp.send('Log.enable');
 
   const ev = async expr => {
-    const r = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true });
+    const r = await cdp.send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) throw new Error('page eval failed: ' + expr + ' :: ' + JSON.stringify(r.exceptionDetails));
     return r.result.value;
   };
@@ -125,6 +125,17 @@ try {
       await sleep(50);
     }
     return -1;
+  };
+  // press on a card, drag it to a slot, check the lifted run mid-drag, release
+  const dragTo = async ([x, y], [tx, ty], during) => {
+    const p = { button: 'left', clickCount: 1 };
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, ...p, buttons: 1 });
+    for (const f of [0.3, 1]) await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + (tx - x) * f, y: y + (ty - y) * f, buttons: 1 });
+    const mid = during && await during();
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tx, y: ty, ...p, buttons: 0 });
+    // moves are delivered on animation frames and the release queues behind them
+    await ev('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+    return mid;
   };
   const click = async ([x, y]) => {
     const p = { x, y, button: 'left', clickCount: 1 };
@@ -171,14 +182,16 @@ try {
   check(geom.cards === 52, 'DOM holds all 52 cards', geom);
   check(geom.faces === 7, 'exactly 7 cards face up at the deal', geom.faces);
   check(geom.bad === 0, 'no card is outside the 390x844 viewport', geom.bad);
-  check(geom.glyphs.length === 7 && geom.glyphs.every(g => /^(10|[A2-9JQK])\n[\u2660\u2665\u2663\u2666]$/.test(g)),
-    'faces are rank-over-suit text, one per dealt card', geom.glyphs);
+  check(geom.glyphs.length === 7 && geom.glyphs.every(g => /^(10|[A2-9JQK])[\u2660\u2665\u2663\u2666]$/.test(g)),
+    'card indexes are rank+suit text, one per dealt card', geom.glyphs);
+  check(await ev(`[...document.querySelectorAll('#b>.c')].filter(e=>e.textContent).every(e=>getComputedStyle(e,'::after').content==='"'+e.textContent.slice(-1)+'"')`),
+    'every face-up card draws its big centre suit from the same suit');
   const font = await ev(`(()=>{const s=getComputedStyle(document.querySelector('#b>.c'));
     return {family:s.fontFamily,weight:s.fontWeight,size:parseFloat(s.fontSize)}})()`);
   check(/\bsystem-ui\b/.test(font.family) && font.weight === '600' && font.size > 10,
     'the var() font shorthand resolves (not dropped as invalid)', font);
   check(geom.glyphs.some(g => g.startsWith('10')), 'the ten is displayed as 10, not T', geom.glyphs);
-  // rank over suit, horizontally centred, sitting inside the fan strip at the card top
+  // one index line, horizontally centred, sitting inside the fan strip at the card top
   // (getClientRects() can split a line into fragments, so cluster rects by top).
   const lay = await ev(`(()=>{const e=[...document.querySelectorAll('#b>.c')].find(x=>x.textContent.startsWith('10'));
     const r=e.getBoundingClientRect(), rg=document.createRange(); rg.selectNodeContents(e);
@@ -192,20 +205,16 @@ try {
       cx:lines.map(L=>(L.left+L.right)/2),
       block:[lines[0].top,lines[lines.length-1].bottom]}})()`);
   const off = (a, b) => Math.abs(a - b);
-  check(lay.n === 2 && lay.block[0] < lay.block[1], 'cards show two lines: rank above suit',
-    { lines: lay.n, text: lay.text });
-  check(Math.max(...lay.cx.map(x => off(x, lay.c[0]))) < 2, 'the rank and suit are horizontally centred',
+  check(lay.n === 1, 'the index is a single line', { lines: lay.n, text: lay.text });
+  check(Math.max(...lay.cx.map(x => off(x, lay.c[0]))) < 2, 'the index is horizontally centred',
     { dx: lay.cx.map(x => +off(x, lay.c[0]).toFixed(2)) });
   check(lay.block[1] <= lay.c[1] + lay.c[2] * 0.42,
-    'the face fits inside the 42% fan strip (covered cards stay readable)',
+    'the index fits inside the 42% fan strip (covered cards stay readable)',
     { blockBottom: +(lay.block[1] - lay.c[1]).toFixed(1), strip: +(lay.c[2] * 0.42).toFixed(1) });
   await shot('mobile-deal.png');
 
   console.log('== 2. real taps: select, stock draw, undo ==');
   await settle();
-  const topCard = (await domState()).find(([, k, , j]) => k === 0 && j > 0) || (await domState()).find(([, k]) => k === 0);
-  await click(await cardBox(topCard[0]));
-  check(await ev(`document.querySelectorAll('#b>.s').length`) === 1, 'tapping a face-up tableau card selects its run');
   await click(await slotBox(11)); // stock
   check(await ev(`document.querySelectorAll('#b>.c').length`) === 52, 'still 52 card nodes after a draw');
   check((await domState()).filter(([, k]) => k === 3).length === 1, 'stock tap moved one card to the waste');
@@ -222,11 +231,22 @@ try {
     return {bad:bad.length,w:innerWidth,h:innerHeight}})()`);
   check(wide.bad === 0, 'no card is outside the 1280x800 viewport', wide);
   await shot('desktop-deal.png');
+  await metrics(844, 390, true); // phone on its side: the thumb bar moves to the right edge
+  check(await settle() >= 0, 'the 844x390 landscape re-layout settles');
+  const side = await ev(`(()=>{const c=[...document.querySelectorAll('#b>.c')], h=document.getElementById('h').getBoundingClientRect();
+    const bad=c.filter(e=>{const r=e.getBoundingClientRect();
+      return r.left<-1||r.top<-1||r.right>h.left+1||r.bottom>innerHeight+1});
+    return {bad:bad.length,bar:[h.left|0,h.top|0,h.width|0,h.height|0]}})()`);
+  check(side.bad === 0 && side.bar[0] > 600 && side.bar[3] > 300, 'landscape: cards fit left of a right-edge thumb bar', side);
+  await shot('mobile-landscape.png');
 
   console.log('== 4. replay a winning game through the UI (reduced motion) ==');
   await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await metrics(390, 844, true);
   await nav(`${base}/#${win.seed}`);
+  // a same-URL hash navigation keeps the page, so wait for the phone viewport to reach it
+  for (let i = 0; i < 100 && await ev('innerWidth') !== 390; i++) await sleep(20);
+  await settle();
   check(await ev(`getComputedStyle(document.querySelector('#b>.c')).transitionDuration`) === '0s',
     'prefers-reduced-motion turns the animations off');
   const sim = K.deal(win.seed);
@@ -238,7 +258,9 @@ try {
     sim.w.forEach((v, i) => { e[v] = [3, 0, i]; });
     return e;
   };
-  let mismatch = 0, played = 0;
+  // the UI plays the rest home by itself once every card is face up and the stock is spent
+  const autoReady = () => !sim.s.length && !sim.w.length && sim.t.every(p => p.every(v => !K.down(v)));
+  let mismatch = 0, played = 0, auto = -1;
   const dbg = !!process.env.DEBUG_MOVES;
   const stop = +(process.env.DEBUG_STOP || 0);
   for (let n = 0; n < win.line.length; n++) {
@@ -256,16 +278,16 @@ try {
           return {k:e._k,i:e._i,j:e._j,up:!!e.textContent};})()`);
         console.log(`  move ${n}: from ${JSON.stringify(mv.s)} to ${JSON.stringify(mv.t)} card ${id} dom ${JSON.stringify(info)} at ${JSON.stringify(box)}`);
       }
-      await click(box);
-      const selIds = await ev(`[...document.querySelectorAll('#b>.s')].map(e=>e._c)`);
       const simRun = mv.s.k === K.T ? sim.t[mv.s.i].slice(mv.s.j).map(v => v & 63) : [id];
+      const selIds = await dragTo(box, await slotBox(mv.t.k === K.F ? 7 + mv.t.i : mv.t.i),
+        () => ev(`[...document.querySelectorAll('#b>.s')].map(e=>e._c)`));
       if (selIds.length !== simRun.length || !simRun.every(c => selIds.includes(c))) {
-        check(false, `move ${n}: tapping card ${id} did not select its run`, { selIds, simRun });
+        check(false, `move ${n}: dragging card ${id} did not lift its run`, { selIds, simRun });
         break;
       }
-      await click(await slotBox(mv.t.k === K.F ? 7 + mv.t.i : mv.t.i));
       if (!K.tryMove(sim, mv.s, mv.t)) { check(false, `move ${n}: engine rejected its own move`); break; }
     }
+    if (autoReady()) { auto = n + 1; played++; break; }
     const want = expected(), dom = await domState();
     const bad = [];
     if (dom.length !== 52) bad.push(['count', dom.length, 52]);
@@ -293,8 +315,13 @@ try {
         'on a real board, every face-up card under a fan still shows its whole face', read);
     }
   }
-  check(mismatch === 0 && played === win.line.length, `all ${win.line.length} scripted moves applied and matched the engine`, { played, mismatch });
-  const final = await ev(`[...document.querySelectorAll('#b>.c')].filter(e=>e._k===1).length`);
+  check(mismatch === 0 && auto > 0 && played === auto, `the first ${auto} scripted moves applied and matched the engine`, { played, mismatch });
+  let final = 0;
+  for (let i = 0; i < 120 && final < 52; i++) {
+    await sleep(50);
+    final = await ev(`[...document.querySelectorAll('#b>.c')].filter(e=>e._k===1).length`);
+  }
+  check(win.line.length - auto > 0, `auto-finish took over the last ${win.line.length - auto} moves`);
   check(final === 52, 'all 52 cards are home in the DOM', final);
   check(await ev(`document.getElementById('w').classList.contains('on')`), 'win overlay is shown');
   await shot('mobile-win.png');
@@ -306,7 +333,41 @@ try {
     cards:document.querySelectorAll('#b>.c').length})`);
   check(!again.on && again.home === 0 && again.cards === 52, 'tapping the win overlay deals a new game', again);
 
-  console.log('== 5. no extra requests, no page errors ==');
+  console.log('== 5. hint, keys, resume, draw-3 ==');
+  const sels = () => ev(`document.querySelectorAll('#b>.s').length`);
+  const key = k => cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, text: k }).then(() => cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: k }));
+  // let the new deal finish: until then the tableau is parked face down on the stock
+  for (let i = 0; i < 100 && await ev(`[...document.querySelectorAll('#b>.c')].filter(e=>e.textContent).length`) < 7; i++) await sleep(50);
+  await settle();
+  await click(await ev(`(()=>{const r=document.getElementById('i').getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2]})()`));
+  check(await sels() > 0, 'the hint button highlights a card to move (or the stock)');
+  const hinted = await ev(`(document.querySelector('#b>.c.s')||{})._c`);
+  if (hinted != null && !(await ev(`document.querySelector('#b>.c.s').classList.contains('k')`))) {
+    const before = JSON.stringify(await domState());
+    await click(await cardBox(hinted));
+    check(JSON.stringify(await domState()) !== before, 'one tap on the hinted card moves it');
+    await key('z');
+    check(JSON.stringify(await domState()) === before, 'Z undoes the tap-move');
+  }
+  const stuck = await ev(`(()=>{const e=[...document.querySelectorAll('#b>.c.k')].find(e=>e._k===0);return e&&e._c})()`);
+  const before2 = JSON.stringify(await domState());
+  await click(await cardBox(stuck));
+  check(JSON.stringify(await domState()) === before2, 'tapping a face-down card moves nothing');
+  await key('d');
+  check((await domState()).filter(([, k]) => k === 3).length === 1, 'the D key draws from the stock');
+  const board = JSON.stringify(await domState());
+  await nav(`${base}/`); // no #seed: resume the saved game
+  check(JSON.stringify(await domState()) === board, 'reloading resumes the same board');
+  await key('z');
+  check((await domState()).filter(([, k]) => k === 3).length === 0, 'undo history survives the reload (Z key)');
+  await ev(`document.getElementById('m').click()`);
+  check(await ev(`document.getElementById('m').textContent`) === 'Draw 3', 'the mode button switches to draw 3');
+  await key('d');
+  const w3 = (await domState()).filter(([, k]) => k === 3).length;
+  check(w3 === 3, 'a draw-3 deal moves three cards to the waste', w3);
+  await shot('mobile-draw3.png');
+
+  console.log('== 6. no extra requests, no page errors ==');
   check(reqs.every(r => r === '/'), 'every HTTP request was for the page itself', reqs);
   const errs = cdp.events.filter(e =>
     e.method === 'Runtime.exceptionThrown' ||

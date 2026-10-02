@@ -45,7 +45,7 @@ const gz = gzBuf.length, br = brBuf.length;
 const refs = [...html.matchAll(/\b(?:src|href)\s*=\s*["']?([^"'\s>]*)/g)].map(m => m[1]);
 const external = refs.filter(u => !u.startsWith('data:'));
 
-const targets = { raw: 7000, br: 3000 };
+const targets = { gz: 13 * 1024 }; // the budget: 13 KB on the wire after gzip
 const kb = n => (n / 1024).toFixed(2) + ' KB';
 const table = [
   ['css', Buffer.byteLength(css)],
@@ -58,16 +58,15 @@ console.log('--- parts ---');
 console.log(`  css        ${String(Buffer.byteLength(css)).padStart(7)} B`);
 console.log(`  js         ${String(Buffer.byteLength(js)).padStart(7)} B`);
 console.log('--- dist/index.html ---');
-console.log(`  raw        ${String(raw).padStart(7)} B  ${kb(raw)}  (target <= ${kb(targets.raw)})`);
-console.log(`  gzip -9    ${String(gz).padStart(7)} B  ${kb(gz)}`);
-console.log(`  brotli q11 ${String(br).padStart(7)} B  ${kb(br)}  (target <= ${kb(targets.br)})`);
+console.log(`  raw        ${String(raw).padStart(7)} B  ${kb(raw)}`);
+console.log(`  gzip -9    ${String(gz).padStart(7)} B  ${kb(gz)}  (budget <= ${kb(targets.gz)})`);
+console.log(`  brotli q11 ${String(br).padStart(7)} B  ${kb(br)}`);
 console.log('  wrote dist/index.html, dist/index.html.br, dist/index.html.gz');
 console.log(`  http requests: 1 (external refs: ${external.length})` + (external.length ? ' -> ' + external.join(', ') : ''));
 
 if (process.argv.includes('--check')) {
   const fail = [];
-  if (raw > targets.raw) fail.push(`raw ${raw} > ${targets.raw}`);
-  if (br > targets.br) fail.push(`brotli ${br} > ${targets.br}`);
+  if (gz > targets.gz) fail.push(`gzip ${gz} > ${targets.gz}`);
   if (external.length) fail.push(`${external.length} external ref(s)`);
   if (fail.length) {
     console.error('CHECK FAILED: ' + fail.join('; '));

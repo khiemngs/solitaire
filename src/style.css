@@ -1,15 +1,30 @@
 * { margin: 0; padding: 0; box-sizing: border-box }
 
 html, body {
+  height: 100%;
   overflow: hidden;
-  background: #0a6b3d;
   /* var() keeps the CSS minifier from expanding `system-ui` into a 130-byte stack */
   font: 600 1em/1 var(--f, system-ui);
+  color: #fff;
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   touch-action: none;
+  overscroll-behavior: none;
 }
 
-#b { position: fixed; inset: 0; --w: 60px; --h: 84px; font-variant-emoji: text }
+/* board on top, thumb bar below; padding keeps both clear of the notch and rounded corners */
+body {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  background: radial-gradient(circle at 50% 30%, #12844c, #054427);
+}
+
+#b { position: relative; flex: 1; --w: 60px; --h: 84px; font-variant-emoji: text }
 
 #b > div {
   position: absolute;
@@ -17,34 +32,36 @@ html, body {
   top: 0;
   width: var(--w);
   height: var(--h);
-  border-radius: 6%;
+  border-radius: 7%;
 }
 
 .e { border: 1px solid #fff4; pointer-events: none }
 
 .c {
   background: #fff;
-  border: 1px solid #1a1a1a;
+  border: 1px solid #0004;
+  box-shadow: 0 1px 3px #0005;
   color: #111;
-  display: grid;
-  justify-items: center;
-  align-content: start;
   /* em, not %: a percentage padding resolves against the board width, not the card */
-  padding-top: .15em;
-  white-space: pre;
+  padding-top: .12em;
   text-align: center;
-  line-height: 1.05;
+  line-height: 1.1;
   transition: transform .18s ease-out;
 }
 
+/* the big centre suit sits below the index strip, so a fanned card never covers the index */
+.c::after { content: attr(data-s); display: block; margin-top: .3em; font-size: 2em; line-height: 1 }
+
 /* while a drag drives the cards, following the pointer must not lag */
 #b.d > div { transition: none }
+#b.d .s { scale: 1.06; box-shadow: 0 8px 18px #0008 }
 
 .r { color: #c00 }
 
 .k {
   background: repeating-linear-gradient(45deg, #123f6b 0 5px, #1b5c96 0 10px);
   border-color: #08203c;
+  color: #0000;
 }
 
 .s { outline: .16em solid #fd0; outline-offset: -.16em }
@@ -53,29 +70,46 @@ html, body {
 .p { animation: f .3s ease-out }
 @keyframes f { 50% { background: #ffdf85 } }
 
-#h { position: fixed; display: flex; flex-direction: column; gap: 6% }
+/* thumb bar: New, Draw mode, moves and clock, Hint, Undo */
+#h {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+}
 
 #h button {
-  flex: 1;
+  min-height: 48px;
   border: 0;
-  border-radius: 6%;
-  background: #fff3;
-  color: #fff;
+  border-radius: 12px;
+  background: #fff2;
+  color: inherit;
   font: inherit;
+  font-size: 15px;
   cursor: pointer;
 }
 
-#h button:active { background: #fff6 }
+#h button:active { background: #fff5 }
+
+#t { align-self: center; text-align: center; white-space: pre; font-size: 13px; line-height: 1.4; opacity: .8; font-variant-numeric: tabular-nums }
+
+/* phone on its side: the bar moves to the right edge */
+@media (orientation: landscape) and (max-height: 500px) {
+  body { flex-direction: row; padding-bottom: env(safe-area-inset-bottom) }
+  #h { grid-auto-flow: row; width: 104px; padding: 8px 8px 8px 0 }
+}
 
 #w {
   position: fixed;
   inset: 0;
   display: none;
   place-items: center;
-  background: #0009;
-  color: #fff;
-  font-size: 2em;
+  background: #000a;
+  font-size: 1.5em;
+  line-height: 1.6;
   text-align: center;
+  white-space: pre;
 }
 
 #w.on { display: grid; animation: o .25s }

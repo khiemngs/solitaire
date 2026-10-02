@@ -212,3 +212,31 @@ test('win: a full game can be played to 52 cards home through the engine', () =>
   assert.ok(g.f.every(n => n === 13));
   assert.deepEqual(greedyLine(found.seed).length, found.line.length, 'greedy line is deterministic');
 });
+
+test('draw-3: draws three, fewer at the end, then recycles in order', () => {
+  const g = st({ s: [1, 2, 3, 4, 5], n: 3 });
+  assert.ok(K.stock(g));
+  assert.deepEqual([g.s, g.w], [[1, 2], [5, 4, 3]]);
+  assert.ok(K.stock(g));
+  assert.deepEqual([g.s, g.w], [[], [5, 4, 3, 2, 1]]);
+  assert.ok(K.stock(g), 'recycle');
+  assert.deepEqual([g.s, g.w], [[1, 2, 3, 4, 5], []]);
+  assert.equal(K.deal(5, 3).n, 3);
+  assert.equal(K.deal(5).n, 1);
+});
+
+test('hint: foundation first, skips king shuffles, null when stuck', () => {
+  const home = st({ t: [[C(0, 0)], [C(5, 0)], [C(4, 1)], [], [], [], []] }); // SA, S6, H5
+  assert.deepEqual(K.hint(home), { a: { k: K.T, i: 0, j: 0 }, b: { k: K.F, i: 0 } });
+
+  const king = st({ t: [[C(12, 0)], [], [], [], [], [], []] });
+  assert.equal(K.hint(king), null, 'a lone king never hops between empty columns');
+
+  const reveal = st({ t: [[C(5, 0)], [C(9, 2) | K.DOWN, C(4, 1)], [], [], [], [], []] });
+  assert.deepEqual(K.hint(reveal), { a: { k: K.T, i: 1, j: 1 }, b: { k: K.T, i: 0 } });
+
+  const g = K.deal(9);
+  const before = K.snapshot(g), h = K.hint(g);
+  assert.equal(K.snapshot(g), before, 'hint does not touch the state');
+  if (h) assert.ok(K.tryMove(g, h.a, h.b), 'the hinted move is legal');
+});

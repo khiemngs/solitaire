@@ -12,7 +12,7 @@ export const red = v => ((v / 13) | 0) % 2 > 0;
 export const down = v => (v & DOWN) > 0;
 
 // xorshift32 -> reproducible deals from a small integer seed
-export function deal(seed) {
+export function deal(seed, n = 1) {
   const d = [...Array(52).keys()];
   let x = (seed >>> 0) || 1;
   const rnd = () => {
@@ -33,7 +33,7 @@ export function deal(seed) {
     for (let n = 0; n <= c; n++) p.push(d[k++] | (n < c ? DOWN : 0));
     t.push(p);
   }
-  return { t, f: [0, 0, 0, 0], s: d.slice(k), w: [] };
+  return { t, f: [0, 0, 0, 0], s: d.slice(k), w: [], n }; // n = cards per draw
 }
 
 // Card sitting on top of a source pile, or -1.
@@ -88,11 +88,30 @@ export function tryMove(g, a, b) {
   return true;
 }
 
-// Draw from stock, or recycle the waste. Returns true when something happened.
+// Draw 1 or 3 from stock, or recycle the waste. Returns true when something happened.
 export function stock(g) {
-  if (g.s.length) { g.w.push(g.s.pop()); return true; }
+  if (g.s.length) {
+    for (let n = g.n || 1; n-- && g.s.length;) g.w.push(g.s.pop());
+    return true;
+  }
   if (g.w.length) { g.s = g.w.reverse(); g.w = []; return true; }
   return false;
+}
+
+// A move worth making, foundation moves first, or null. Tableau-to-tableau moves only
+// count when they reveal a face-down card or empty a column for something other than a king.
+export function hint(g) {
+  const src = g.w.length ? [{ k: W, i: 0, j: g.w.length - 1 }] : [];
+  g.t.forEach((p, i) => {
+    const j = p.findIndex(v => !down(v));
+    if (j >= 0) src.push({ k: T, i, j: p.length - 1 }, { k: T, i, j });
+  });
+  for (const k of [F, T]) for (const a of src) for (let i = 0; i < (k ? 4 : 7); i++) {
+    const p = g.t[a.i];
+    if (k === T && a.k === T && (a.j ? !down(p[a.j - 1]) : rank(p[0]) === 12)) continue;
+    if (tryMove(JSON.parse(snapshot(g)), a, { k, i })) return { a, b: { k, i } };
+  }
+  return null;
 }
 
 export const won = g => g.f[0] + g.f[1] + g.f[2] + g.f[3] === 52;

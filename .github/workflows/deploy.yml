@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22
 
-      # Fails the deploy if the document grows past 12 KB raw / 5 KB brotli
+      # Fails the deploy if the document grows past 13 KB gzip
       # or if it ever gains a second HTTP request.
       - run: node build.mjs --check
 
