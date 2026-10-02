@@ -168,9 +168,9 @@ version-specific; with it pinned, CI's output is byte-identical to the local
 `dist/index.html`.
 
 Two things to know about GitHub Pages specifically: it serves the document **gzip-encoded
-(3,447 B)** — it does not pick up the pre-compressed `.br`/`.gz` siblings — and it sends
-`Cache-Control: max-age=600`. Both are fine here (one request, ~3.4 KB), but a host with
-`brotli_static` gets 2,966 B and immutable caching:
+(3,352 B measured on the live site)** — it does not pick up the pre-compressed `.br`/`.gz`
+siblings — and it sends `Cache-Control: max-age=600`. Both are fine here (one request,
+~3.35 KB), but a host with `brotli_static` gets 2,907 B and immutable caching:
 
 ```nginx
 brotli_static on;      # serves index.html.br (2,907 B) when the client accepts br
