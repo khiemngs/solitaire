@@ -6,7 +6,7 @@ A complete Klondike (draw-1) solitaire that fits in **one self-contained HTML do
 no external images, fonts or scripts — no requests of any kind beyond the page itself.
 
 ```
-dist/index.html        6,950 B raw        3,433 B gzip -9       2,907 B brotli -q11
+dist/index.html        6,946 B raw        3,349 B gzip -9       2,895 B brotli -q11
 ```
 
 That is the whole game — HTML, CSS, 52-card deck, rules engine, renderer, input
@@ -48,7 +48,7 @@ reproducible shuffle (the built-in xorshift32 PRNG), and it is also the test ent
 | `font: 600 1em/1 var(--f, system-ui)` | dodges the CSS minifier's 130-byte `system-ui` stack expansion (measured: −90 B raw, −61 B brotli) |
 | 1–2 character ids/classes (`#b`, `.c`, `.k`, `.r`, `.s`, `.p`), seeded deal | fewer bytes in both CSS and HTML |
 | 65 board nodes built by one `innerHTML` parse + `String.repeat` | beats 65 `createElement`/`append` pairs |
-| `bun build --minify` (esbuild) for JS + CSS, whitespace/comment HTML minify, HTML attribute quotes removed | JS 5,318 B, CSS 1,280 B, shell 352 B |
+| `bun build --minify` (esbuild) for JS + CSS, whitespace/comment HTML minify, HTML attribute quotes removed | JS 5,314 B, CSS 1,280 B, shell 352 B |
 | Pre-compressed `dist/index.html.br` / `.gz` written by the build | brotli 2.84 KB over the wire where the host supports it |
 
 ### What actually shrinks the file (measured, and counter-intuitive)
@@ -63,10 +63,10 @@ counter-productive:
 | *rejected:* alias `getElementById`/`addEventListener`/`Math`, `classList`→`hidden`, `transform`→`translate` (measured against the 7,310 B file) | −165 | **+37** | **+54** |
 | *rejected:* destructuring swap instead of a temp variable | 0 | 0 | **+23** |
 
-**Total: 7,310 → 6,950 raw (−4.9 %), 3,527 → 3,433 gzip (−2.7 %), 2,966 → 2,907 brotli (−2.0 %)**, of
-which every byte came from deleting content rather than renaming it. The last two rows are
-deliberately *not* in the file: the temp-variable swap is kept because it is the same size
-raw but 23 bytes cheaper brotli.
+**Total: 7,310 → 6,946 raw (−364 B, −5.0 %), 3,527 → 3,349 gzip (−178 B, −5.0 %),
+2,966 → 2,895 brotli (−71 B, −2.4 %)**, of which every byte came from deleting content
+rather than renaming it. The last two rows are deliberately *not* in the file: the
+temp-variable swap is kept because it is the same size raw but 23 bytes cheaper brotli.
 | Pre-compressed `dist/index.html.br` / `.gz` written by the build | brotli 2.83 KB over the wire, no runtime compression |
 
 Measured step by step with `node build.mjs`, which prints the raw/gzip/brotli table and
@@ -124,11 +124,13 @@ node serve.mjs                # PORT=8080 node serve.mjs -> http://127.0.0.1:808
   still in flight, that `.c` really has a transition, that the board settles afterwards,
   and that emulated `prefers-reduced-motion: reduce` turns both off (the 332-move replay
   then runs against the static path, which also keeps it deterministic).
-* **On the live site** — the deployed document is byte-identical to the committed
-  `dist/index.html`, and loading <https://khiemngs.github.io/solitaire/> in real Chrome
-  produces **exactly one network request** (the document — no favicon, no sub-resources),
-  a correct 52-card deal, working stock/undo taps and zero console errors. See
-  `shots/live-github-pages.png`.
+* **On the live site** — the deployed document is built by CI from this source and is
+  **behaviourally identical** to the committed `dist/index.html`; bun's minifier emits
+  equivalent output that differs slightly by platform (6,950 B on the Linux runner vs
+  6,946 B locally — different short names and one CSS shorthand in a different order).
+  Loading <https://khiemngs.github.io/solitaire/> in real Chrome produces **exactly one
+  network request** (the document — no favicon, no sub-resources), a correct 52-card deal,
+  working stock/undo taps and zero console errors. See `shots/live-github-pages.png`.
 
 ## Animation
 
@@ -159,22 +161,24 @@ with every face readable), `shots/mobile-win.png`, `shots/live-github-pages.png`
 `main` rebuilds from source, so the published file is always generated, never hand-edited.
 The pipeline refuses to deploy if:
 
-* the document exceeds 12 KB raw / 5 KB brotli, or gains any non-`data:` external
+* the document exceeds **7,000 B raw / 3,000 B brotli**, or gains any non-`data:` external
   reference (that would mean a second HTTP request),
 * a rules test fails.
 
 Bun is pinned (`1.3.14`) in the workflow because the minifier's identifier naming is
-version-specific; with it pinned, CI's output is byte-identical to the local
-`dist/index.html`.
+version-specific. It is not platform-independent though: the same source minifies to
+6,946 B locally (macOS) and 6,950 B on the Linux runner, with the same behaviour. So the
+workflow reports the drift against the committed `dist/` (`git diff --stat`) instead of
+failing on it, and the artifact it publishes is always the one it just built.
 
 Two things to know about GitHub Pages specifically: it serves the document **gzip-encoded
 (3,352 B measured on the live site)** — it does not pick up the pre-compressed `.br`/`.gz`
 siblings — and it sends `Cache-Control: max-age=600`. Both are fine here (one request,
-~3.35 KB), but a host with `brotli_static` gets 2,907 B and immutable caching:
+~3.35 KB), but a host with `brotli_static` gets 2,895 B and immutable caching:
 
 ```nginx
-brotli_static on;      # serves index.html.br (2,907 B) when the client accepts br
-gzip_static on;        # falls back to index.html.gz (3,433 B)
+brotli_static on;      # serves index.html.br (2,895 B) when the client accepts br
+gzip_static on;        # falls back to index.html.gz (3,349 B)
 location = / { add_header Cache-Control "public, max-age=31536000, immutable"; }
 ```
 
